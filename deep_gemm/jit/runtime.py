@@ -5,6 +5,12 @@ from typing import Any, Dict, Optional, Type
 
 import cuda.bindings.driver as cbd
 import torch
+from cuda.bindings.driver import (
+    cuLibraryEnumerateKernels,
+    cuLibraryGetKernelCount,
+    cuModuleEnumerateFunctions,
+    cuModuleGetFunctionCount,
+)
 from torch.utils.cpp_extension import CUDA_HOME
 
 
@@ -91,6 +97,17 @@ class Runtime:
             # https://nvidia.github.io/cuda-python/cuda-bindings/latest/module/driver.html#cuda.bindings.driver.cuLibraryEnumerateKernels
             # https://nvidia.github.io/cuda-python/cuda-bindings/latest/module/driver.html#cuda.bindings.driver.cuLibraryGetKernelCount
             # Load kernel from the library
+            # result, kernel_count = cbd.cuLibraryGetKernelCount(self.lib)
+            # if result == cbd.CUresult.CUDA_SUCCESS:
+            #     print(f"Kernel count: {kernel_count}")
+            # else:
+            #     print(f"Error getting kernel counts")
+            # result, _kernel_names = cbd.cuLibraryEnumerateKernels(10, self.lib)
+            # if result == cbd.CUresult.CUDA_SUCCESS:
+            #     print(f"Kernel names: {_kernel_names}")
+            # else:
+            #     print(f"Error getting kernel names")
+
             result, self.kernel = cbd.cuLibraryGetKernel(
                 self.lib, bytes(kernel_names[0], encoding="utf-8")
             )

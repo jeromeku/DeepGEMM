@@ -1,5 +1,6 @@
 import ctypes
 import os
+from contextlib import nullcontext
 from typing import Any, Dict
 
 import cuda.bindings.driver as cbd
@@ -11,7 +12,7 @@ from deep_gemm.trace import create_tracer
 # Essential debugging staffs
 os.environ['DG_JIT_DEBUG'] = os.getenv('DG_JIT_DEBUG', '1')
 os.environ['DG_JIT_DISABLE_CACHE'] = os.getenv('DG_JIT_DISABLE_CACHE', '1')
-
+SHOULD_TRACE = os.getenv('SHOULD_TRACE', '0') == '1'
 
 class VectorAddRuntime(jit.Runtime):
     def __init__(self, path: str) -> None:
@@ -78,10 +79,13 @@ if __name__ == '__main__':
     print('Generated code:')
     kwargs = {'T': 'float'}
 
-    tracer = create_tracer()
-    trace_dir = "traces/jit"
-    os.makedirs(trace_dir, exist_ok=True)
-    tracer.output_file = os.path.join(trace_dir, "vec_add.generate.json")
+    if SHOULD_TRACE:
+        tracer = create_tracer()
+        trace_dir = "traces/jit"
+        os.makedirs(trace_dir, exist_ok=True)
+        tracer.output_file = os.path.join(trace_dir, "vec_add.generate.json")
+    else:
+        tracer = nullcontext()
     with tracer:
         code = VectorAddRuntime.generate(kwargs)
     print(code)
@@ -95,7 +99,8 @@ if __name__ == '__main__':
     # Build
     print('Building ...')
 
-    tracer.output_file = os.path.join(trace_dir, "vec_add.build.json")
+    if SHOULD_TRACE:
+        tracer.output_file = os.path.join(trace_dir, "vec_add.build.json")
     with tracer:
         func = compiler_cls.build('test_func', code, VectorAddRuntime, kwargs)
 
@@ -104,7 +109,8 @@ if __name__ == '__main__':
     b = torch.randn((1024, ), dtype=torch.float32, device='cuda')
     c = torch.empty_like(a)
 
-    tracer.output_file = os.path.join(trace_dir, "vec_add.run.json")
+    if SHOULD_TRACE:
+        tracer.output_file = os.path.join(trace_dir, "vec_add.run.json")
     with tracer:
         ret = func(A=a, B=b, C=c, STREAM=torch.cuda.current_stream().cuda_stream)
     
