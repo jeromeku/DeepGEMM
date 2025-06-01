@@ -1,9 +1,12 @@
+from pathlib import Path
+
 from viztracer import VizTracer
 from viztracer import get_tracer as get_global_tracer
 
 import deep_gemm
 
-ROOT_DIR = deep_gemm.__path__[0]
+ROOT_DIR = Path(deep_gemm.__path__[0]).parent.absolute().as_posix()
+
 
 def _get_trace_config(
     include_files=None,
@@ -43,7 +46,7 @@ def create_tracer(
     if include_files is None:
         include_files = [ROOT_DIR]
         print(f"Setting include_files to {include_files}")
-        
+
     tracer = VizTracer(
         include_files=include_files,
         ignore_frozen=ignore_frozen,
