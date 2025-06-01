@@ -6,37 +6,15 @@ from typing import Any, Dict, Optional, Type
 
 import cuda.bindings.driver as cbd
 import torch
-from cuda.bindings.driver import (
-    CUresult,
-    cuLibraryEnumerateKernels,
-    cuLibraryGetKernelCount,
-    cuModuleEnumerateFunctions,
-    cuModuleGetFunctionCount,
-)
 from torch.utils.cpp_extension import CUDA_HOME
 
-CUDA_SUCCESS = cbd.CUresult.CUDA_SUCCESS
-GET_MODULE = "cuLibraryGetModule"
-MODULE_FUNCTIONS = "cuModuleEnumerateFunctions"
-MODULE_FUNCTION_COUNT = "cuModuleGetFunctionCount"
-LIBRARY_KERNELS = "cuLibraryEnumerateKernels"
-LIBRARY_KERNEL_COUNT = "cuLibraryGetKernelCount"
-
-def CALL_CUDA_FUNC(func_name, *args, **kwargs):
-    try:
-        fn = getattr(cbd, func_name, None)
-        if fn is None:
-            print(f"Could not fund {func_name} in cuda bindings")
-            return None
-
-        result, rest = fn(*args, **kwargs)
-        if not result == CUDA_SUCCESS:
-            print(f"{func_name} returned cuda error: {result}")
-            return None
-        return rest
-    except Exception as e:
-        print(f"Error while calling {func_name}: {e}")
-        return None
+from deep_gemm.cuda_utils import (
+    CALL_CUDA_FUNC,
+    LIBRARY_KERNEL_COUNT,
+    LIBRARY_KERNELS,
+    MODULE_FUNCTION_COUNT,
+    MODULE_FUNCTIONS,
+)
 
 
 class Runtime:
@@ -44,6 +22,7 @@ class Runtime:
         self.path = path
         self.lib = None
         self.kernel = None
+        self.func = None
         assert self.is_path_valid(self.path)
 
     @staticmethod
@@ -64,6 +43,74 @@ class Runtime:
     def launch(kernel: cbd.CUkernel, kwargs: Dict[str, Any]) -> cbd.CUresult:
         raise NotImplemented
 
+    def create_cuFunc(self, **kwargs):
+        if self.func is None:
+            path = bytes(os.path.join(self.path, "kernel.cubin"), "utf-8")
+    
+            # https://nvidia.github.io/cuda-python/cuda-bindings/latest/module/driver.html#cuda.bindings.driver.cuLibraryLoadFromFile
+
+            result, self.lib = cbd.cuLibraryLoadFromFile(
+                path,
+                [],  # jitOptions
+                [],  # jitOptionsValues
+                0,  # numJitOptions
+                [],  # libraryOptions
+                [],  # libraryOptionValues
+                0,  # numLibraryOptions
+            )
+            assert result == cbd.CUresult.CUDA_SUCCESS, (
+                f"Failed to load library: {result}"
+            )
+
+            # Extract the kernel name
+            # TODO: use `cuda-bindings` API to do this (requires at least 12.8)
+            command = [f"{CUDA_HOME}/bin/cuobjdump", "-symbols", path]
+            result = subprocess.run(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            assert result.returncode == 0
+            illegal_names = [
+                "vprintf",
+                "__instantiate_kernel",
+                "__internal",
+                "__assertfail",
+            ]
+            check_illegal = lambda line: any([name in line for name in illegal_names])
+            kernel_names = [
+                line.split()[-1]
+                for line in result.stdout.splitlines()
+                if line.startswith("STT_FUNC") and not check_illegal(line)
+            ]
+            assert len(kernel_names) == 1, (
+                f"Too many kernels in the library: {kernel_names}"
+            )
+            
+            
+            # https://nvidia.github.io/cuda-python/cuda-bindings/latest/module/driver.html#cuda.bindings.driver.cuLibraryEnumerateKernels
+            # https://nvidia.github.io/cuda-python/cuda-bindings/latest/module/driver.html#cuda.bindings.driver.cuLibraryGetKernelCount
+            # Load kernel from the library
+
+            breakpoint()            
+            num_kernels = CALL_CUDA_FUNC(LIBRARY_KERNEL_COUNT, self.lib)      
+            assert num_kernels == 1, (f"Found {num_kernels} kernels!")
+            
+            mod = CALL_CUDA_FUNC("cuLibraryGetModule", self.lib)
+            num_kernels = 1
+            kernel_handles = CALL_CUDA_FUNC(LIBRARY_KERNELS, num_kernels, self.lib)
+            if kernel_handles is not None:
+                kernel_handle = kernel_handles[0]
+                self.kernel_handle = kernel_handle
+            # func_count_lib = CALL_CUDA_FUNC(MODULE_FUNCTION_COUNT, self.lib)
+            func_count = CALL_CUDA_FUNC(MODULE_FUNCTION_COUNT, mod)
+            assert func_count == 1, f"Found {func_count} functions!"
+            # func_names_lib = CALL_CUDA_FUNC(MODULE_FUNCTIONS, num_kernels, self.lib)
+            func_handles = CALL_CUDA_FUNC(MODULE_FUNCTIONS, num_kernels, mod)
+            if func_handles is not None:
+                func_handle = func_handles[0]
+                self.func = func_handle
+
+        return self.func
+    
     def __call__(self, **kwargs) -> cbd.CUresult:
         """
         Params for `cuLibraryLoadFromFile`:
@@ -118,26 +165,8 @@ class Runtime:
             assert len(kernel_names) == 1, (
                 f"Too many kernels in the library: {kernel_names}"
             )
-            
-            
-            # https://nvidia.github.io/cuda-python/cuda-bindings/latest/module/driver.html#cuda.bindings.driver.cuLibraryEnumerateKernels
-            # https://nvidia.github.io/cuda-python/cuda-bindings/latest/module/driver.html#cuda.bindings.driver.cuLibraryGetKernelCount
-            # Load kernel from the library
-
-            breakpoint()            
-            kernel_count = CALL_CUDA_FUNC(LIBRARY_KERNEL_COUNT, self.lib)
-            
-            print(f"Kernel count: {kernel_count}")
-            breakpoint()
-            mod = CALL_CUDA_FUNC("cuLibraryGetModule")
-            
-            num_kernels = 5
-            kernel_names = CALL_CUDA_FUNC(LIBRARY_KERNELS, num_kernels, self.lib)
-            func_count_lib = CALL_CUDA_FUNC(MODULE_FUNCTION_COUNT, self.lib)
-            func_count_mod = CALL_CUDA_FUNC(MODULE_FUNCTION_COUNT, mod)
-            func_names_lib = CALL_CUDA_FUNC(MODULE_FUNCTIONS, num_kernels, self.lib)
-            func_names_mod = CALL_CUDA_FUNC(MODULE_FUNCTIONS, num_kernels, mod)
-            
+                      
+            print(f"{__file__}: Loading kernel name {kernel_names[0]}")
             result, self.kernel = cbd.cuLibraryGetKernel(
                 self.lib, bytes(kernel_names[0], encoding="utf-8")
             )
@@ -151,7 +180,7 @@ class Runtime:
                 print(f"Loading JIT runtime {self.path} took {elapsed_time:.2f} ms.")
 
         # noinspection PyArgumentList
-        return self.launch(self.kernel, kwargs)
+        return self.launch(self.kernel, **kwargs)
 
     def __del__(self) -> None:
         if self.lib is not None:
@@ -177,10 +206,13 @@ class RuntimeCache:
     ) -> Optional[Runtime]:
         # In Python runtime
         if path in self.cache:
+            print(f"{__file__}: Loading runtime from self.cache at {path}")
             return self.cache[path]
 
         # Already compiled
         use_cache = force_enable_cache or not int(os.getenv("DG_JIT_DISABLE_CACHE", 0))
+        print(f"{__file__}: {use_cache=}")
+        
         if use_cache and os.path.exists(path) and Runtime.is_path_valid(path):
             # Print heuristic for the first time
             if name and (
@@ -204,7 +236,9 @@ class RuntimeCache:
                     simplified_kwargs[key] = value
                 print(f"Put kernel {name} with {simplified_kwargs} into runtime cache")
 
+            print(f"{__file__}: Creating {runtime_cls.__name__} from {path}")
             runtime = runtime_cls(path)
+            print(f"{__file__}: Setting {path} in self.cache")
             self.cache[path] = runtime
             return runtime
         return None
