@@ -1,17 +1,42 @@
 import os
 import subprocess
 import time
+from contextlib import contextmanager
 from typing import Any, Dict, Optional, Type
 
 import cuda.bindings.driver as cbd
 import torch
 from cuda.bindings.driver import (
+    CUresult,
     cuLibraryEnumerateKernels,
     cuLibraryGetKernelCount,
     cuModuleEnumerateFunctions,
     cuModuleGetFunctionCount,
 )
 from torch.utils.cpp_extension import CUDA_HOME
+
+CUDA_SUCCESS = cbd.CUresult.CUDA_SUCCESS
+GET_MODULE = "cuLibraryGetModule"
+MODULE_FUNCTIONS = "cuModuleEnumerateFunctions"
+MODULE_FUNCTION_COUNT = "cuModuleGetFunctionCount"
+LIBRARY_KERNELS = "cuLibraryEnumerateKernels"
+LIBRARY_KERNEL_COUNT = "cuLibraryGetKernelCount"
+
+def CALL_CUDA_FUNC(func_name, *args, **kwargs):
+    try:
+        fn = getattr(cbd, func_name, None)
+        if fn is None:
+            print(f"Could not fund {func_name} in cuda bindings")
+            return None
+
+        result, rest = fn(*args, **kwargs)
+        if not result == CUDA_SUCCESS:
+            print(f"{func_name} returned cuda error: {result}")
+            return None
+        return rest
+    except Exception as e:
+        print(f"Error while calling {func_name}: {e}")
+        return None
 
 
 class Runtime:
@@ -60,9 +85,9 @@ class Runtime:
 
             result, self.lib = cbd.cuLibraryLoadFromFile(
                 path,
-                [], # jitOptions
-                [], # jitOptionsValues
-                0, # numJitOptions
+                [],  # jitOptions
+                [],  # jitOptionsValues
+                0,  # numJitOptions
                 [],  # libraryOptions
                 [],  # libraryOptionValues
                 0,  # numLibraryOptions
@@ -93,21 +118,26 @@ class Runtime:
             assert len(kernel_names) == 1, (
                 f"Too many kernels in the library: {kernel_names}"
             )
-            breakpoint()
+            
+            
             # https://nvidia.github.io/cuda-python/cuda-bindings/latest/module/driver.html#cuda.bindings.driver.cuLibraryEnumerateKernels
             # https://nvidia.github.io/cuda-python/cuda-bindings/latest/module/driver.html#cuda.bindings.driver.cuLibraryGetKernelCount
             # Load kernel from the library
-            # result, kernel_count = cbd.cuLibraryGetKernelCount(self.lib)
-            # if result == cbd.CUresult.CUDA_SUCCESS:
-            #     print(f"Kernel count: {kernel_count}")
-            # else:
-            #     print(f"Error getting kernel counts")
-            # result, _kernel_names = cbd.cuLibraryEnumerateKernels(10, self.lib)
-            # if result == cbd.CUresult.CUDA_SUCCESS:
-            #     print(f"Kernel names: {_kernel_names}")
-            # else:
-            #     print(f"Error getting kernel names")
 
+            breakpoint()            
+            kernel_count = CALL_CUDA_FUNC(LIBRARY_KERNEL_COUNT, self.lib)
+            
+            print(f"Kernel count: {kernel_count}")
+            breakpoint()
+            mod = CALL_CUDA_FUNC("cuLibraryGetModule")
+            
+            num_kernels = 5
+            kernel_names = CALL_CUDA_FUNC(LIBRARY_KERNELS, num_kernels, self.lib)
+            func_count_lib = CALL_CUDA_FUNC(MODULE_FUNCTION_COUNT, self.lib)
+            func_count_mod = CALL_CUDA_FUNC(MODULE_FUNCTION_COUNT, mod)
+            func_names_lib = CALL_CUDA_FUNC(MODULE_FUNCTIONS, num_kernels, self.lib)
+            func_names_mod = CALL_CUDA_FUNC(MODULE_FUNCTIONS, num_kernels, mod)
+            
             result, self.kernel = cbd.cuLibraryGetKernel(
                 self.lib, bytes(kernel_names[0], encoding="utf-8")
             )
