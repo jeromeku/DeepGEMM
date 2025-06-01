@@ -1,0 +1,9 @@
+export DG_JIT_DEBUG=1
+export DG_JIT_PRINT_COMPILER_COMMAND=1
+export DG_JIT_PRINT_REG_REUSE=1
+export DG_JIT_DISABLE_FFMA_INTERLEAVE=1
+export DG_PRINT_CONFIGS=1
+export DG_NSYS_PROFILING=1
+export DG_JIT_CACHE_DIR=`pwd`/dg_cache
+export DG_JIT_DISABLE_CACHE=1
+export DG_JIT_NVCC_COMPILER=/home/jeromeku/kernels/cuda/bin/nvcc
