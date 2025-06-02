@@ -86,20 +86,20 @@ static void __instantiate_kernel() {{
         #     ctypes.c_void_p,
         #     ctypes.c_uint32,
         # )
-        breakpoint()
-        kernel_args = (kernel, 
+        kernel_args = (int(kernel), 
                        gridDimX, gridDimY, gridDimZ,
                        blockDimX, blockDimY, blockDimZ,
                        sharedMemBytes,
-                       hStream,
+                       int(hStream),
                        kernelParams,
-                       [] # extra
+                       None # extra
                        )
-        return CALL_CUDA_FUNC("cuLaunchKernel", *kernel_args) 
-    
+        # return CALL_CUDA_FUNC("cuLaunchKernel", *kernel_args) 
+        return cbd.cuLaunchKernel(*kernel_args)
+        
     # noinspection PyShadowingNames,PyMethodOverriding
     @staticmethod
-    def launch(kernel: cbd.CUkernel, **kwargs: Dict[str, Any]) -> cbd.CUresult:
+    def launch(kernel: cbd.CUkernel | cbd.CUfunction, **kwargs: Dict[str, Any]) -> cbd.CUresult:
         assert kwargs["A"].shape == kwargs["B"].shape == kwargs["C"].shape
         assert kwargs["A"].device == kwargs["B"].device == kwargs["C"].device
         assert kwargs["A"].dim() == 1
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         tracer.output_file = os.path.join(trace_dir, "vec_add.build.json")
     with tracer:
         func: VectorAddRuntime = compiler_cls.build("test_func", code, VectorAddRuntime, kwargs)
-    breakpoint()
+
     # Run and check
     a = torch.randn((1024,), dtype=torch.float32, device="cuda")
     b = torch.randn((1024,), dtype=torch.float32, device="cuda")
@@ -182,3 +182,6 @@ if __name__ == "__main__":
     else:
         torch.testing.assert_close(c, c2)
         print("cuFunc test passed!")
+    
+    ret = func.launchKernel(cufunc, A=a, B=b, C=c2, STREAM=torch.cuda.current_stream().cuda_stream)
+    print(f"cuLaunchKernel returned: {ret}")

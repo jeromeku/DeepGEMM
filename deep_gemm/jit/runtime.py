@@ -90,7 +90,6 @@ class Runtime:
             # https://nvidia.github.io/cuda-python/cuda-bindings/latest/module/driver.html#cuda.bindings.driver.cuLibraryGetKernelCount
             # Load kernel from the library
 
-            breakpoint()            
             num_kernels = CALL_CUDA_FUNC(LIBRARY_KERNEL_COUNT, self.lib)      
             assert num_kernels == 1, (f"Found {num_kernels} kernels!")
             
