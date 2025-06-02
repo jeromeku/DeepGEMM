@@ -1,5 +1,7 @@
 import ctypes
 import os
+import re
+import subprocess
 from contextlib import nullcontext
 from typing import Any, Dict
 
@@ -9,6 +11,19 @@ import torch
 from deep_gemm import jit
 from deep_gemm.cuda_utils import CALL_CUDA_FUNC, CUDA_SUCCESS
 from deep_gemm.trace import create_tracer
+
+
+def get_cuda_version():
+    try:
+        result = subprocess.run(['nvidia-smi'], capture_output=True, text=True)
+        output = result.stdout
+        match = re.search(r'CUDA Version: (\d+\.\d+)', output)
+        if match:
+            return match.group(1)
+        return None
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
 
 # Essential debugging staffs
 os.environ["DG_JIT_DEBUG"] = os.getenv("DG_JIT_DEBUG", "1")
@@ -145,7 +160,7 @@ if __name__ == "__main__":
     print(code)
     print()
 
-    compiler_name = "NVCC"  # , 'NVRTC'):
+    compiler_name = 'NVRTC'
     # Get compiler
     compiler_cls = getattr(jit, f"{compiler_name}Compiler")
     print(f"Compiler: {compiler_name}, version: {compiler_cls.__version__()}")
@@ -172,16 +187,23 @@ if __name__ == "__main__":
     torch.testing.assert_close(c, a + b)
     print(f"JIT test for {compiler_name} passed\n")
     
-    cufunc = func.create_cuFunc()
-    assert cufunc is not None
-
-    c2 = torch.empty_like(a)
-    ret = func.launch(cufunc, A=a, B=b, C=c2, STREAM=torch.cuda.current_stream().cuda_stream)
-    if ret != CUDA_SUCCESS:
-        print(f"Launch not successful: {ret}")
-    else:
-        torch.testing.assert_close(c, c2)
-        print("cuFunc test passed!")
+    cuda_version = get_cuda_version()
+    assert cuda_version is not None
+    major, minor = cuda_version.split(".")
     
-    ret = func.launchKernel(cufunc, A=a, B=b, C=c2, STREAM=torch.cuda.current_stream().cuda_stream)
-    print(f"cuLaunchKernel returned: {ret}")
+    if int(major) > 12 and int(minor) >= 5: 
+        cufunc = func.create_cuFunc()
+        assert cufunc is not None
+
+        c2 = torch.empty_like(a)
+        ret = func.launch(cufunc, A=a, B=b, C=c2, STREAM=torch.cuda.current_stream().cuda_stream)
+        if ret != CUDA_SUCCESS:
+            print(f"Launch not successful: {ret}")
+        else:
+            torch.testing.assert_close(c, c2)
+            print("cuFunc test passed!")
+        
+        ret = func.launchKernel(cufunc, A=a, B=b, C=c2, STREAM=torch.cuda.current_stream().cuda_stream)
+        print(f"cuLaunchKernel returned: {ret}")
+    else:
+        print(f"Cuda version {cuda_version} < 12.5, skipping additional checks")

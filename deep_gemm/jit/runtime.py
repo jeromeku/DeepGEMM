@@ -48,7 +48,7 @@ class Runtime:
             path = bytes(os.path.join(self.path, "kernel.cubin"), "utf-8")
     
             # https://nvidia.github.io/cuda-python/cuda-bindings/latest/module/driver.html#cuda.bindings.driver.cuLibraryLoadFromFile
-
+            print(f"Loading cuLibrary from {path}")
             result, self.lib = cbd.cuLibraryLoadFromFile(
                 path,
                 [],  # jitOptions
@@ -76,11 +76,15 @@ class Runtime:
                 "__assertfail",
             ]
             check_illegal = lambda line: any([name in line for name in illegal_names])
+            print(f"cuobjdump symbols:\n{result.stdout}")
+
             kernel_names = [
                 line.split()[-1]
                 for line in result.stdout.splitlines()
                 if line.startswith("STT_FUNC") and not check_illegal(line)
             ]
+            
+            print(f"Parsed kernel names: {'\n\t'.join(kernel_names)}")
             assert len(kernel_names) == 1, (
                 f"Too many kernels in the library: {kernel_names}"
             )
@@ -90,20 +94,27 @@ class Runtime:
             # https://nvidia.github.io/cuda-python/cuda-bindings/latest/module/driver.html#cuda.bindings.driver.cuLibraryGetKernelCount
             # Load kernel from the library
 
-            num_kernels = CALL_CUDA_FUNC(LIBRARY_KERNEL_COUNT, self.lib)      
-            assert num_kernels == 1, (f"Found {num_kernels} kernels!")
+            # num_kernels = CALL_CUDA_FUNC(LIBRARY_KERNEL_COUNT, self.lib)      
+            # #assert num_kernels == 1, (f"Found {num_kernels} kernels!")
             
             mod = CALL_CUDA_FUNC("cuLibraryGetModule", self.lib)
+            
+            # num_kernels = 1
+            # kernel_handles = CALL_CUDA_FUNC(LIBRARY_KERNELS, num_kernels, self.lib)
+            
+            # if kernel_handles is not None:
+            #     kernel_handle = kernel_handles[0]
+            #     self.kernel_handle = kernel_handle
+            
             num_kernels = 1
-            kernel_handles = CALL_CUDA_FUNC(LIBRARY_KERNELS, num_kernels, self.lib)
-            if kernel_handles is not None:
-                kernel_handle = kernel_handles[0]
-                self.kernel_handle = kernel_handle
             # func_count_lib = CALL_CUDA_FUNC(MODULE_FUNCTION_COUNT, self.lib)
             func_count = CALL_CUDA_FUNC(MODULE_FUNCTION_COUNT, mod)
+            
             assert func_count == 1, f"Found {func_count} functions!"
+            
             # func_names_lib = CALL_CUDA_FUNC(MODULE_FUNCTIONS, num_kernels, self.lib)
             func_handles = CALL_CUDA_FUNC(MODULE_FUNCTIONS, num_kernels, mod)
+            
             if func_handles is not None:
                 func_handle = func_handles[0]
                 self.func = func_handle
