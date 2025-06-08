@@ -199,8 +199,12 @@ class NVCCCompiler(Compiler):
         command = [get_nvcc_compiler()[0],
                    src_path, '-o', target_path,
                    *cls.flags()]
+        debug_flag = os.getenv("DEBUG_GEMM", 0)
+        if debug_flag:
+            command += ["-DDEBUG_GEMM"]
+
         if int(os.getenv('DG_JIT_DEBUG', 0)) or int(os.getenv('DG_JIT_PRINT_COMPILER_COMMAND', 0)):
-            print(f'Compiling JIT runtime {name} with command {command}')
+            print(f'Compiling JIT runtime {name} with command:\n{" ".join(command)}')
 
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if result.returncode != 0:

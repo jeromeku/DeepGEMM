@@ -303,7 +303,37 @@ def test_k_grouped_wgrad_gemm():
     print()
 
 
+def debug_gemm(tracer) -> None:
+    print('Testing GEMM:')
+    for m in (4096,):
+        for k, n in [(4096, 5120)]:
+            x_fp8, y_fp8, out, ref_out = construct(m, k, n)
+            with tracer:
+                deep_gemm.gemm_fp8_fp8_bf16_nt(x_fp8, y_fp8, out)
+            
+            diff = calc_diff(out, ref_out)
+            assert diff < 0.001, f'{m=}, {k=}, {n=}, {diff:.5f}'
+
+    #         # noinspection PyShadowingNames
+    #         def test_func():
+    #             deep_gemm.gemm_fp8_fp8_bf16_nt(x_fp8, y_fp8, out)
+
+    #         t = bench_kineto(test_func, 'fp8_gemm', suppress_kineto_output=True)
+    #         print(f' > Perf (m={m:5}, n={n:5}, k={k:5}): {t * 1e6:4.0f} us | '
+    #               f'throughput: {2 * m * n * k / t / 1e12:4.0f} TFLOPS, '
+    #               f'{(m * k + k * n + m * n * 2) / 1e9 / t:4.0f} GB/s')
+    # print()
+
 if __name__ == '__main__':
+    SHOULD_TRACE = True
+    if SHOULD_TRACE:
+        from deep_gemm.trace import create_tracer
+        tracer = create_tracer()
+        tracer.output_file = "deepgemm.json"
+    else:
+        from contextlib import nullcontext
+        tracer = nullcontext()
+
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
     torch.manual_seed(0)
@@ -311,10 +341,11 @@ if __name__ == '__main__':
 
     print('Library path:')
     print(f' > {deep_gemm.__path__}\n')
+    
+    debug_gemm(tracer=tracer)
+    # test_gemm()
+    # test_m_grouped_gemm_contiguous()
+    # test_m_grouped_gemm_masked()
 
-    test_gemm()
-    test_m_grouped_gemm_contiguous()
-    test_m_grouped_gemm_masked()
-
-    test_wgrad_gemm()
-    test_k_grouped_wgrad_gemm()
+    # test_wgrad_gemm()
+    # test_k_grouped_wgrad_gemm()

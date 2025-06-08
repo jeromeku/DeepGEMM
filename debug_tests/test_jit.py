@@ -148,19 +148,19 @@ if __name__ == "__main__":
     print("Generated code:")
     kwargs = {"T": "float"}
 
+    compiler_name = 'NVRTC'
+
     if SHOULD_TRACE:
         tracer = create_tracer()
-        trace_dir = "traces/jit"
+        trace_dir = f"traces/jit/{compiler_name}"
         os.makedirs(trace_dir, exist_ok=True)
-        tracer.output_file = os.path.join(trace_dir, "vec_add.generate.json")
     else:
         tracer = nullcontext()
-    with tracer:
-        code = VectorAddRuntime.generate(kwargs)
+
+    code = VectorAddRuntime.generate(kwargs)
     print(code)
     print()
 
-    compiler_name = 'NVRTC'
     # Get compiler
     compiler_cls = getattr(jit, f"{compiler_name}Compiler")
     print(f"Compiler: {compiler_name}, version: {compiler_cls.__version__()}")

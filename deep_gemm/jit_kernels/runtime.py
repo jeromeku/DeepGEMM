@@ -1,12 +1,13 @@
 import ctypes
-import os
 import enum
-import torch
-import cuda.bindings.driver as cbd
+import os
 from typing import Any, Dict, Tuple
 
-from .utils import get_tma_aligned_size
+import cuda.bindings.driver as cbd
+import torch
+
 from ..jit.runtime import Runtime
+from .utils import get_tma_aligned_size
 
 
 class GemmType(enum.Enum):
@@ -179,7 +180,7 @@ static void __instantiate_kernel() {{
 
     # noinspection PyMethodOverriding
     @staticmethod
-    def launch(kernel: cbd.CUkernel, kwargs: Dict[str, Any]) -> cbd.CUresult:
+    def launch(kernel: cbd.CUkernel, **kwargs: Dict[str, Any]) -> cbd.CUresult:
         num_tma_threads = 128
         num_math_threads_per_group = 128
 

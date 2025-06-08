@@ -15,6 +15,10 @@
 #include "tma_utils.cuh"
 #include "utils.cuh"
 
+#if defined(DEBUG_GEMM)
+#include <cute/tensor.hpp>
+#include <cute/util/debug.hpp>
+#endif
 namespace deep_gemm {
 
 template <uint32_t kNumFormerIters, uint32_t kGap, uint32_t kEnd>
@@ -67,6 +71,14 @@ fp8_gemm_kernel(float* scales_b, int* grouped_layout,
     constexpr uint32_t kNumThreads = get_num_threads_per_sm<kNumTMAThreads, kNumMathThreadsPerGroup>(BLOCK_M);
     constexpr uint32_t kNumMathThreads = kNumThreads - kNumTMAThreads;
     constexpr uint32_t kNumIterations = ceil_div(SHAPE_K, kFullKOfAllStages);
+    
+    
+    #if defined(DEBUG_GEMM)
+    if(cute::thread0()){
+        printf("kNumThreads, kNumMathThreads, kFullKofAllStages, kNumIterations: %d, %d, %d, %d\n", kNumThreads, kNumMathThreads, kFullKOfAllStages, kNumIterations);
+    }
+    #endif
+
     const uint32_t warp_idx = __shfl_sync(0xffffffff, threadIdx.x / 32, 0);
     const uint32_t lane_idx = get_lane_id();
 
