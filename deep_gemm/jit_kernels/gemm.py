@@ -91,10 +91,53 @@ def get_best_configs(m: int, n: int, k: int, num_groups: int, num_sms: int,
     if is_fp32_out:
         block_ns = [x for x in block_ns if x % 16 == 8]
 
-    fix_wave_saturate = lambda x: num_sms if x == 0 else x
-    get_num_waves = lambda bm, bn: (ceil_div(ceil_div(m, bm) * ceil_div(n, bn) * num_groups, num_sms) if bm else None)
-    get_last_wave_util = lambda bm, bn: fix_wave_saturate((ceil_div(m, bm) * ceil_div(n, bn) * num_groups) % num_sms)
+    # fix_wave_saturate = lambda x: num_sms if x == 0 else x
+    # get_num_waves = lambda bm, bn: (ceil_div(ceil_div(m, bm) * ceil_div(n, bn) * num_groups, num_sms) if bm else None)
+    # get_last_wave_util = lambda bm, bn: fix_wave_saturate((ceil_div(m, bm) * ceil_div(n, bn) * num_groups) % num_sms)
 
+    def fix_wave_saturate(x):
+        """
+        Fix wave saturation by returning num_sms if x is 0, otherwise return x.
+        
+        Args:
+            x: Input value to check and potentially fix
+            
+        Returns:
+            num_sms if x == 0, otherwise x
+        """
+        return num_sms if x == 0 else x
+
+
+    def get_num_waves(bm, bn):
+        """
+        Calculate the number of waves based on block dimensions.
+        
+        Args:
+            bm: Block dimension m
+            bn: Block dimension n
+            
+        Returns:
+            Number of waves if bm is not None/0, otherwise None
+        """
+        if bm:
+            return ceil_div(ceil_div(m, bm) * ceil_div(n, bn) * num_groups, num_sms)
+        else:
+            return None
+
+
+    def get_last_wave_util(bm, bn):
+        """
+        Calculate the utilization of the last wave.
+        
+        Args:
+            bm: Block dimension m
+            bn: Block dimension n
+            
+        Returns:
+            Fixed wave saturation value for the last wave utilization
+        """
+        last_wave_util = (ceil_div(m, bm) * ceil_div(n, bn) * num_groups) % num_sms
+        return fix_wave_saturate(last_wave_util)
     # Decide block sizes by waves
     best_block_m, best_block_n = None, None
     for block_m in block_ms:

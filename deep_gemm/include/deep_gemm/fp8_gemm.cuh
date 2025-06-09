@@ -67,16 +67,20 @@ fp8_gemm_kernel(float* scales_b, int* grouped_layout,
     static constexpr uint32_t SMEM_SCALES_B_SIZE = ceil_div<uint32_t>(SHAPE_K_SCALES * (kMustUseUniformedScaleB ? 1 : 2) * sizeof(float), sizeof(Barrier)) * sizeof(Barrier);
 
     // Configs
-    constexpr uint32_t kFullKOfAllStages = kNumStages * BLOCK_K;
+    constexpr uint32_t kFullKOfAllStages = kNumStages * BLOCK_K; // elements along K spanned by all pipeline stages
     constexpr uint32_t kNumThreads = get_num_threads_per_sm<kNumTMAThreads, kNumMathThreadsPerGroup>(BLOCK_M);
     constexpr uint32_t kNumMathThreads = kNumThreads - kNumTMAThreads;
     constexpr uint32_t kNumIterations = ceil_div(SHAPE_K, kFullKOfAllStages);
     
+
     
     // #if defined(DEBUG_GEMM)
     if(cute::thread0()){
        printf("M, N, K, BLOCK_M, BLOCK_N, BLOCK_K, Num Stages: (%d, %d, %d), (%d, %d, %d), %d\n", shape_m, SHAPE_N, SHAPE_K, BLOCK_M, BLOCK_N, BLOCK_K, kNumStages);
-        printf("kNumThreads, kNumMathThreads, kFullKofAllStages, kNumIterations: %d, %d, %d, %d\n", kNumThreads, kNumMathThreads, kFullKOfAllStages, kNumIterations);
+        printf("kNumTMAThreads, kNumMathThreadsPerGroup: %d, %d\n", kNumTMAThreads, kNumMathThreadsPerGroup); // 
+        // kNumTMAThreads, kNumMathThreadsPerGroup: 128, 128
+        printf("kNumThreads, kNumMathThreads, kFullKofAllStages, kNumIterations: %d, %d, %d, %d\n", kNumThreads, kNumMathThreads, kFullKOfAllStages, kNumIterations); // 
+        // kNumThreads, kNumMathThreads, kFullKofAllStages, kNumIterations: 384, 256, 384, 11 for 4096x5120x4096 problem size
     }
     // #endif
 
@@ -137,7 +141,7 @@ fp8_gemm_kernel(float* scales_b, int* grouped_layout,
         #pragma unroll
         for (uint32_t i = 0; i < kNumStages; ++ i) {
             full_barriers[i]->init(1);
-            empty_barriers[i]->init(kNumTMAMulticast * kNumMathThreads / 32);
+            empty_barriers[i]->init(kNumTMAMulticast * kNumMathThreads / 32); // cluster-size * num_consumer_warps
         }
 
         // Make initialized barrier visible in async proxy

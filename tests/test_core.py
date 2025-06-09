@@ -306,7 +306,7 @@ def test_k_grouped_wgrad_gemm():
 def debug_gemm(tracer) -> None:
     print('Testing GEMM:')
     TileM, TileN, TileK = 128, 256, 64
-    m, n, k = (2048, 5120, 4096)
+    m, n, k = (4096, 5120, 4096)
     print(f"Problem Shape: {m}x{n}x{k}")
     x_fp8, y_fp8, out, ref_out = construct(m, k, n)
     print(f"{x_fp8[0].shape=} {x_fp8[0].stride()} {y_fp8[0].shape=} {y_fp8[0].stride()=}")
@@ -327,7 +327,7 @@ def debug_gemm(tracer) -> None:
     # print()
 
 if __name__ == '__main__':
-    SHOULD_TRACE = False
+    SHOULD_TRACE = True
     if SHOULD_TRACE:
         from deep_gemm.trace import create_tracer
         tracer = create_tracer()
