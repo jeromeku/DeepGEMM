@@ -305,14 +305,16 @@ def test_k_grouped_wgrad_gemm():
 
 def debug_gemm(tracer) -> None:
     print('Testing GEMM:')
-    for m in (4096,):
-        for k, n in [(4096, 5120)]:
-            x_fp8, y_fp8, out, ref_out = construct(m, k, n)
-            with tracer:
-                deep_gemm.gemm_fp8_fp8_bf16_nt(x_fp8, y_fp8, out)
-            
-            diff = calc_diff(out, ref_out)
-            assert diff < 0.001, f'{m=}, {k=}, {n=}, {diff:.5f}'
+    TileM, TileN, TileK = 128, 256, 64
+    m, n, k = (2048, 5120, 4096)
+    print(f"Problem Shape: {m}x{n}x{k}")
+    x_fp8, y_fp8, out, ref_out = construct(m, k, n)
+    print(f"{x_fp8[0].shape=} {x_fp8[0].stride()} {y_fp8[0].shape=} {y_fp8[0].stride()=}")
+    with tracer:
+        deep_gemm.gemm_fp8_fp8_bf16_nt(x_fp8, y_fp8, out)
+    
+    diff = calc_diff(out, ref_out)
+    assert diff < 0.001, f'{m=}, {k=}, {n=}, {diff:.5f}'
 
     #         # noinspection PyShadowingNames
     #         def test_func():
@@ -325,7 +327,7 @@ def debug_gemm(tracer) -> None:
     # print()
 
 if __name__ == '__main__':
-    SHOULD_TRACE = True
+    SHOULD_TRACE = False
     if SHOULD_TRACE:
         from deep_gemm.trace import create_tracer
         tracer = create_tracer()

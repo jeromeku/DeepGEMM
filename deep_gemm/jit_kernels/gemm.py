@@ -1,14 +1,24 @@
 import math
-import torch
 from functools import lru_cache
 from typing import Tuple
 
+import torch
+
 from ..jit import build
 from .runtime import (
-    FP8GemmRuntime, GemmType,
-    make_2d_tma_a_desc, make_2d_tma_b_desc,
-    make_2d_tma_d_desc, make_2d_tma_scales_desc)
-from .utils import get_num_sms, ceil_div, get_col_major_tma_aligned_tensor, get_m_alignment_for_contiguous_layout
+    FP8GemmRuntime,
+    GemmType,
+    make_2d_tma_a_desc,
+    make_2d_tma_b_desc,
+    make_2d_tma_d_desc,
+    make_2d_tma_scales_desc,
+)
+from .utils import (
+    ceil_div,
+    get_col_major_tma_aligned_tensor,
+    get_m_alignment_for_contiguous_layout,
+    get_num_sms,
+)
 
 
 def is_tma_multicast_legal(shape_dim: int, block_dim: int, num_tma_multicast: int, num_sms: int,
@@ -204,7 +214,7 @@ def gemm_fp8_fp8_bf16_nt(lhs: Tuple[torch.Tensor, torch.Tensor],
     block_k = 128
     num_tma_threads = 128
     num_math_threads_per_group = 128
-
+    print(f"Autotuned results: {num_sms=} {block_m=} {block_n=} {num_stages=} {tma_multicast_config=} {smem_config=}")
     tensor_map_a = make_2d_tma_a_desc(GemmType.Normal, lhs, m, k, lhs.stride(0), block_m, block_k, 1)
     tensor_map_b = make_2d_tma_b_desc(GemmType.Normal, rhs, n, k, rhs.stride(0), block_n, block_k, 1)
     tensor_map_d = make_2d_tma_d_desc(GemmType.Normal, out, m, n, out.stride(0), block_m, block_n, 1, smem_config[1])
@@ -235,7 +245,8 @@ def gemm_fp8_fp8_bf16_nt(lhs: Tuple[torch.Tensor, torch.Tensor],
         'STREAM': torch.cuda.current_stream().cuda_stream,
         'DEVICE_INDEX': out.device.index
     }
-
+   
+    print(f"Build config:\n{kwargs}")
     # Generate, build and run the kernel
     code = FP8GemmRuntime.generate(kwargs)
     runtime = build('gemm_fp8_fp8_bf16_nt', code, FP8GemmRuntime, kwargs)

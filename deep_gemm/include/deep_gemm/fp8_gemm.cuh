@@ -73,11 +73,12 @@ fp8_gemm_kernel(float* scales_b, int* grouped_layout,
     constexpr uint32_t kNumIterations = ceil_div(SHAPE_K, kFullKOfAllStages);
     
     
-    #if defined(DEBUG_GEMM)
+    // #if defined(DEBUG_GEMM)
     if(cute::thread0()){
+       printf("M, N, K, BLOCK_M, BLOCK_N, BLOCK_K, Num Stages: (%d, %d, %d), (%d, %d, %d), %d\n", shape_m, SHAPE_N, SHAPE_K, BLOCK_M, BLOCK_N, BLOCK_K, kNumStages);
         printf("kNumThreads, kNumMathThreads, kFullKofAllStages, kNumIterations: %d, %d, %d, %d\n", kNumThreads, kNumMathThreads, kFullKOfAllStages, kNumIterations);
     }
-    #endif
+    // #endif
 
     const uint32_t warp_idx = __shfl_sync(0xffffffff, threadIdx.x / 32, 0);
     const uint32_t lane_idx = get_lane_id();
@@ -255,6 +256,9 @@ fp8_gemm_kernel(float* scales_b, int* grouped_layout,
             // Decide the number of scales B to load
             DG_STATIC_ASSERT(SHAPE_N % 8 == 0, "Invalid shape N");
             uint32_t num_former_iters = BLOCK_N / 8, num_full_iters = num_former_iters;
+            if(cute::thread0()){
+                printf("m_block_idx, n_block_idx, num_former_iters, num_full_iters: %d, %d, %d, %d\n", m_block_idx, n_block_idx, num_former_iters, num_full_iters);
+            }
             if constexpr (not kMustUseUniformedScaleB) {
                 num_former_iters = min(BLOCK_N, BLOCK_K - n_block_idx * BLOCK_N % BLOCK_K) / 8;
                 num_full_iters = min(SHAPE_N - n_block_idx * BLOCK_N, BLOCK_N) / 8;
@@ -274,6 +278,9 @@ fp8_gemm_kernel(float* scales_b, int* grouped_layout,
 
             // Accumulation for WGMMA or CUDA promotion
             constexpr uint32_t WAVE_BLOCK_M = WGMMA::M * get_num_math_warpgroups(BLOCK_M);
+            if(cute::thread0()){
+                printf("Wave block_m, WGMMA::M, num_math_warpgroups, BLOCK_M: %d, %d, %d, %d\n", WAVE_BLOCK_M, WGMMA::M, get_num_math_warpgroups(BLOCK_M), BLOCK_M);
+            }
             DG_STATIC_ASSERT(BLOCK_M % WAVE_BLOCK_M == 0, "Invalid block sizes");
             float accum[WGMMA::kNumAccum], final_accum[WGMMA::kNumAccum * (BLOCK_M / WAVE_BLOCK_M)] = {0};
 
