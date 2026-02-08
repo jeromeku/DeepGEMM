@@ -21,12 +21,21 @@ from scripts.generate_pyi import generate_pyi_file
 
 DG_SKIP_CUDA_BUILD = int(os.getenv('DG_SKIP_CUDA_BUILD', '0')) == 1
 DG_FORCE_BUILD = int(os.getenv('DG_FORCE_BUILD', '0')) == 1
-DG_USE_LOCAL_VERSION = int(os.getenv('DG_USE_LOCAL_VERSION', '1')) == 1
+DG_USE_LOCAL_VERSION = int(os.getenv('DG_USE_LOCAL_VERSION', '0')) == 1
 DG_JIT_USE_RUNTIME_API = int(os.environ.get('DG_JIT_USE_RUNTIME_API', '0')) == 1
 
 # Compiler flags
-cxx_flags = ['-std=c++17', '-O3', '-fPIC', '-Wno-psabi', '-Wno-deprecated-declarations',
-             f'-D_GLIBCXX_USE_CXX11_ABI={int(torch.compiled_with_cxx11_abi())}']
+DG_DEBUG_BUILD = int(os.getenv('DG_DEBUG_BUILD', '1')) == 1
+print(f'DG_DEBUG_BUILD: {DG_DEBUG_BUILD}')
+if DG_DEBUG_BUILD:
+    cxx_flags = ['-std=c++17', '-O0', '-g3', '-fPIC', '-Wno-psabi', '-Wno-deprecated-declarations',
+                 '-fno-omit-frame-pointer', '-fno-inline',
+                 f'-D_GLIBCXX_USE_CXX11_ABI={int(torch.compiled_with_cxx11_abi())}']
+else:
+    cxx_flags = ['-std=c++17', '-O3', '-fPIC', '-Wno-psabi', '-Wno-deprecated-declarations',
+                 f'-D_GLIBCXX_USE_CXX11_ABI={int(torch.compiled_with_cxx11_abi())}']
+
+
 if DG_JIT_USE_RUNTIME_API:
     cxx_flags.append('-DDG_JIT_USE_RUNTIME_API')
 

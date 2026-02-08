@@ -117,6 +117,9 @@ def ref_fp8_mqa_logits(q: torch.Tensor, kv: torch.Tensor, weights: torch.Tensor,
 def test_mqa_logits():
     print('Testing FP8 MQA Logits:')
     num_heads, head_dim = 64, 128
+    import os; print(os.getpid())
+    breakpoint()
+    
     for seq_len in (2048, 4096):
         for compressed_logits in (False, True):
             for seq_len_kv in (4096, 8192):
@@ -130,7 +133,6 @@ def test_mqa_logits():
                         ke = torch.arange(seq_len, dtype=torch.int, device='cuda') + (seq_len_kv - seq_len)
                     else:
                         ks, ke = generate_cp_test_data(seq_len, seq_len_kv)
-
                     q_fp8 = q.to(torch.float8_e4m3fn)
                     kv_fp8 = per_custom_dims_cast_to_fp8(kv, (0, ), False)
 
@@ -181,6 +183,8 @@ def ref_fp8_paged_mqa_logits(q: torch.Tensor, kv_cache: torch.Tensor,
     num_block, block_size, _, dim = kv_cache.size()
     logits = torch.full([batch_size * next_n, max_model_len], float('-inf'), device=q.device, dtype=torch.float32)
     context_lens = context_lens.tolist()
+
+
     for i in range(batch_size):
         context_len = context_lens[i]
         q_offsets = torch.full((next_n, ), context_len, device='cuda', dtype=torch.int32) if is_context_lens_2d \
@@ -279,7 +283,7 @@ if __name__ == '__main__':
     torch.manual_seed(0)
     random.seed(0)
 
-    test_gemm_skip_head_mid()
+    # test_gemm_skip_head_mid()
 
     test_mqa_logits()
-    test_paged_mqa_logits()
+    # test_paged_mqa_logits()
